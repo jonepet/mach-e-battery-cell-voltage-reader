@@ -92,7 +92,7 @@ const barKind = (group: number): 'outlier' | 'balancing' | null => {
       :bar-kind="barKind"
     >
       Deviation of each cell from the median, in millivolts. Red cells are outliers; orange cells are being
-      balanced now. Hover a bar for its values.
+      balanced now. Hover or tap a bar for its values.
     </DeviationChart>
     <details v-if="reading">
       <summary>Show all cells as a table</summary>

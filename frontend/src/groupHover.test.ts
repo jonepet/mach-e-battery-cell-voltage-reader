@@ -9,6 +9,8 @@ import { provideGroupHover } from './composables/useGroupHover';
 import type { Reading } from './types';
 
 const voltages = [3.7, 3.71, 3.69];
+const MOUSE = { pointerType: 'mouse' };
+const TOUCH = { pointerType: 'touch' };
 
 const reading: Reading = {
   timestamp: 1_791_720_000,
@@ -106,7 +108,7 @@ describe('group hover', () => {
   it('highlights the hovered group in every chart and the table, and shows its values', async () => {
     const page = mount(Page);
 
-    await page.findAll('#health-chart .slot')[1]?.trigger('pointerenter');
+    await page.findAll('#health-chart .slot')[1]?.trigger('pointerenter', MOUSE);
 
     for (const chart of ['#chart', '#health-chart']) {
       const bands = page.findAll(`${chart} .band`);
@@ -123,24 +125,53 @@ describe('group hover', () => {
 
   it('clears the hover when the pointer leaves the chart', async () => {
     const page = mount(Page);
-    await page.findAll('#chart .slot')[0]?.trigger('pointerenter');
+    await page.findAll('#chart .slot')[0]?.trigger('pointerenter', MOUSE);
 
-    await page.get('#chart').trigger('pointerleave');
+    await page.get('#chart').trigger('pointerleave', MOUSE);
 
     expect(page.findAll('.band--hovered')).toHaveLength(0);
     expect(page.findAll('.row--hovered')).toHaveLength(0);
-    expect(page.get('.readout').text()).toContain('Hover a cell group');
+    expect(page.get('.readout').text()).toContain('Hover or tap a cell group');
   });
 
   it('highlights the hovered group from a table row', async () => {
     const page = mount(Page);
 
-    await page.findAll('tbody tr')[2]?.trigger('pointerenter');
+    await page.findAll('tbody tr')[2]?.trigger('pointerenter', MOUSE);
 
     expect(page.findAll('#health-chart .band').map((band) => band.classes('band--hovered'))).toEqual([
       false,
       false,
       true,
     ]);
+  });
+
+  it('keeps a tapped group selected after the finger lifts, until it is tapped again', async () => {
+    const page = mount(Page);
+    const slot = page.findAll('#chart .slot')[1];
+
+    await slot?.trigger('pointerenter', TOUCH);
+    await slot?.trigger('pointerup', TOUCH);
+    await page.get('#chart').trigger('pointerleave', TOUCH);
+
+    expect(page.findAll('#health-chart .band').map((band) => band.classes('band--hovered'))).toEqual([
+      false,
+      true,
+      false,
+    ]);
+    expect(page.get('.readout').text()).toContain('Cell group #2');
+
+    await slot?.trigger('pointerup', TOUCH);
+
+    expect(page.findAll('.band--hovered')).toHaveLength(0);
+  });
+
+  it('moves the selection to another tapped group', async () => {
+    const page = mount(Page);
+
+    await page.findAll('#chart .slot')[0]?.trigger('pointerup', TOUCH);
+    await page.findAll('tbody tr')[2]?.trigger('pointerup', TOUCH);
+
+    expect(page.get('.readout').text()).toContain('Cell group #3');
   });
 });

@@ -8,6 +8,7 @@ services:
       MACHE_BAUDRATE: "${MACHE_BAUDRATE:-115200}"
       MACHE_SEPARATION_MS: "${MACHE_SEPARATION_MS:-5}"
       MACHE_FRAME_TIMEOUT_MS: "${MACHE_FRAME_TIMEOUT_MS:-200}"
+      MACHE_ALLOWED_HOSTS: "${MACHE_ALLOWED_HOSTS:-}"
     volumes:
       - /dev:/dev
     # ttyUSB (188), ttyACM (166) and rfcomm (216) character devices, so an adapter attached after start is usable.
@@ -51,3 +52,17 @@ services:
       SCREENSHOT_DIR: /screens
     volumes:
       - ./docs/images:/screens
+
+  lock:
+    image: ghcr.io/astral-sh/uv:python3.14-bookworm-slim
+    profiles: [tools]
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      UV_CACHE_DIR: /tmp/uv
+    working_dir: /src
+    volumes:
+      - .:/src
+    command: >-
+      uv pip compile pyproject.toml packaging/build-requirements.in
+      --python-platform x86_64-pc-windows-msvc --python-version 3.14
+      --generate-hashes --no-header -o packaging/requirements-windows.txt

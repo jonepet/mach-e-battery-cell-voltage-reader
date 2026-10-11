@@ -156,7 +156,7 @@ class CellMonitor:
         )
         try:
             return adapter, adapter.initialize()
-        except (TransportError, AdapterError):
+        except TransportError, AdapterError:
             adapter.close()
             raise
 

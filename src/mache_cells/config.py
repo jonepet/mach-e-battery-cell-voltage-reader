@@ -25,11 +25,12 @@ class Settings:
     outlier_deviation_v: float
     spread_warning_v: float
     port_patterns: tuple[str, ...]
+    allowed_hosts: tuple[str, ...]
 
     @classmethod
-    def from_env(cls, env: Mapping[str, str], platform: str = sys.platform) -> "Settings":
+    def from_env(cls, env: Mapping[str, str], platform: str = sys.platform) -> Settings:
         settings = cls(
-            host=env.get("MACHE_HOST", "0.0.0.0"),
+            host=env.get("MACHE_HOST", "127.0.0.1"),
             port=int(env.get("MACHE_PORT", "8080")),
             baudrate=int(env.get("MACHE_BAUDRATE", "115200")),
             read_interval_s=float(env.get("MACHE_READ_INTERVAL_S", "2.0")),
@@ -43,6 +44,9 @@ class Settings:
                 tuple(env["MACHE_PORT_PATTERNS"].split(","))
                 if "MACHE_PORT_PATTERNS" in env
                 else default_port_patterns(platform)
+            ),
+            allowed_hosts=tuple(
+                host.strip() for host in env.get("MACHE_ALLOWED_HOSTS", "").split(",") if host.strip()
             ),
         )
         check_timing(settings.separation_ms, settings.frame_timeout_ms)

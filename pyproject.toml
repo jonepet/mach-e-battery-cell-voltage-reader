@@ -1,9 +1,9 @@
 [project]
 name = "mache-cell-voltages"
-version = "0.1.0"
+version = "0.1.1"
 description = "Research project: read every cell voltage and the health of a Ford Mustang Mach-E battery through an OBD adapter"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
     "anyio>=4.15",
     "fastapi>=0.115",
@@ -35,7 +35,7 @@ mache_cells = ["web/**/*"]
 
 [tool.ruff]
 line-length = 110
-target-version = "py313"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RET", "PL", "RUF"]

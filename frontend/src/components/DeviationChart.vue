@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from 'vue';
+import { computed, onUnmounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 
 import { CHART, type ChartRange, deviationChart, deviationExtent, holdRange } from '../chart';
 import { useGroupHover } from '../composables/useGroupHover';
@@ -14,7 +14,26 @@ const props = defineProps<{
   barKind: (group: number) => 'outlier' | 'balancing' | null;
 }>();
 
-const { group: hovered, set: setHovered } = useGroupHover();
+const { group: hovered, enter, leave, tap } = useGroupHover();
+
+const figure = useTemplateRef<HTMLElement>('figure');
+const width = ref<number>(CHART.width);
+const resize = new ResizeObserver(([entry]) => {
+  if (entry && entry.contentRect.width > 0) {
+    width.value = entry.contentRect.width;
+  }
+});
+watch(figure, (element, previous) => {
+  if (previous) {
+    resize.unobserve(previous);
+  }
+  if (element) {
+    resize.observe(element);
+  }
+});
+onUnmounted(() => {
+  resize.disconnect();
+});
 
 const range = shallowRef<ChartRange | null>(null);
 
@@ -32,21 +51,22 @@ watch(
 const model = computed(() =>
   props.center === null || range.value === null
     ? null
-    : deviationChart(props.values, props.center, props.unit, range.value),
+    : deviationChart(props.values, props.center, props.unit, range.value, width.value),
 );
 </script>
 
 <template>
   <figure
     v-if="model"
+    ref="figure"
     class="chart"
   >
     <svg
       :id="chartId"
-      :viewBox="`0 0 ${CHART.width} ${CHART.height}`"
+      :viewBox="`0 0 ${model.width} ${CHART.height}`"
       role="img"
       :aria-label="label"
-      @pointerleave="setHovered(null)"
+      @pointerleave="leave"
     >
       <g class="ticks">
         <template
@@ -55,7 +75,7 @@ const model = computed(() =>
         >
           <line
             :x1="CHART.left"
-            :x2="CHART.width - CHART.right"
+            :x2="model.width - CHART.right"
             :y1="tick.y"
             :y2="tick.y"
             :class="tick.isAxis ? 'axis' : 'grid'"
@@ -72,7 +92,8 @@ const model = computed(() =>
         v-for="slot in model.slots"
         :key="slot.group"
         class="slot"
-        @pointerenter="setHovered(slot.group)"
+        @pointerenter="enter(slot.group, $event)"
+        @pointerup="tap(slot.group, $event)"
       >
         <rect
           :x="slot.x"
@@ -134,7 +155,7 @@ figcaption {
 
 .tick {
   fill: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .band {

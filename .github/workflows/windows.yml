@@ -11,31 +11,50 @@ permissions:
   contents: read
 
 jobs:
-  installer:
+  build:
     runs-on: windows-latest
     permissions:
-      contents: write
+      contents: read
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.13"
-      - uses: actions/setup-node@v7
+          python-version: "3.14"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install Inno Setup
-        run: choco install innosetup --no-progress -y
+        run: choco install innosetup --version 6.7.1 --no-progress -y
       - name: Build installer
         run: ./packaging/build.ps1
-      - uses: actions/upload-artifact@v7
+      - name: Write SHA-256 checksum
+        shell: pwsh
+        run: |
+          $installer = Get-Item packaging/build/installer/*-setup.exe
+          $hash = (Get-FileHash -Algorithm SHA256 -Path $installer.FullName).Hash.ToLower()
+          [System.IO.File]::WriteAllText("$($installer.FullName).sha256", "$hash  $($installer.Name)`n")
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: windows-installer
-          path: packaging/build/installer/*-setup.exe
+          path: |
+            packaging/build/installer/*-setup.exe
+            packaging/build/installer/*-setup.exe.sha256
           if-no-files-found: error
-      - uses: softprops/action-gh-release@v3
-        if: startsWith(github.ref, 'refs/tags/v')
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          files: packaging/build/installer/*-setup.exe
+          name: windows-installer
+          path: installer
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          files: installer/*
           generate_release_notes: true

@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 Builds the Windows installer: frontend, self-contained executable, Inno Setup installer.
-Needs Python 3.13, Node.js with npm and Inno Setup 6 (ISCC.exe) on the machine.
+Needs Python 3.14, Node.js 24 with npm and Inno Setup 6.7.1 (ISCC.exe) on the machine.
 Result: packaging\build\installer\MacheCellVoltageReader-<version>-setup.exe
 #>
 [CmdletBinding()]
@@ -95,7 +95,8 @@ try {
     Copy-Item -Recurse (Join-Path $root 'frontend\dist') $web
 
     Remove-Item -Recurse -Force $buildDir -ErrorAction SilentlyContinue
-    Invoke-Native 'python' @('-m', 'pip', 'install', '--upgrade', 'pyinstaller', '.')
+    Invoke-Native 'python' @('-m', 'pip', 'install', '--require-hashes', '-r', (Join-Path $PSScriptRoot 'requirements-windows.txt'))
+    Invoke-Native 'python' @('-m', 'pip', 'install', '--no-deps', '--no-build-isolation', '.')
     Invoke-Native 'python' @(
         '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir', '--console',
         '--name', 'MacheCells',

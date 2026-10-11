@@ -24,6 +24,7 @@ export interface Slot {
 }
 
 export interface DeviationChartModel {
+  readonly width: number;
   readonly ticks: readonly Tick[];
   readonly slots: readonly Slot[];
   readonly plotHeight: number;
@@ -65,11 +66,18 @@ export function holdRange(previous: ChartRange | null, extent: number, now: numb
   return now - since >= NARROW_AFTER_MS ? wanted : { ...previous, narrowerSince: since };
 }
 
+const LABEL_SPACING_PX = 28;
+
+const labelEvery = (slotWidth: number): number =>
+  [1, 2, 3, 5, 10, 15, 20, 25, 50].find((every) => every * slotWidth >= LABEL_SPACING_PX) ?? 50;
+
+/** Lays the chart out in screen pixels at `chartWidth`, so text keeps its size on every screen. */
 export function deviationChart(
   values: readonly (number | null)[],
   center: number,
   unit: string,
   range: ChartRange,
+  chartWidth: number,
 ): DeviationChartModel {
   const { limit, step } = range;
   const deviations = values.map((value) => (value === null ? null : value - center));
@@ -82,7 +90,8 @@ export function deviationChart(
     return { y: y(tick), label: `${rounded > 0 ? '+' : ''}${rounded} ${unit}`, isAxis: index === tickCount / 2 };
   });
 
-  const width = (CHART.width - CHART.left - CHART.right) / values.length;
+  const width = (chartWidth - CHART.left - CHART.right) / values.length;
+  const every = labelEvery(width);
   const slots = deviations.map((deviation, index): Slot => {
     const x = CHART.left + width * index;
     const bar =
@@ -94,8 +103,8 @@ export function deviationChart(
             y: Math.min(y(deviation), y(0)),
             height: Math.max(1, Math.abs(y(deviation) - y(0))),
           };
-    return { group: index + 1, x, width, labelX: index % 3 === 0 ? x + width / 2 : null, bar };
+    return { group: index + 1, x, width, labelX: index % every === 0 ? x + width / 2 : null, bar };
   });
 
-  return { ticks, slots, plotHeight: PLOT_HEIGHT };
+  return { width: chartWidth, ticks, slots, plotHeight: PLOT_HEIGHT };
 }

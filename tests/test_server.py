@@ -8,11 +8,15 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 from serial.tools import list_ports
+from starlette.websockets import WebSocketDisconnect
 
 from mache_cells.config import Settings
 from mache_cells.server import create_app
 from mache_cells.transport import PortBusy, Transport
 from tests.conftest import BECM_DATA, FakeAdapter
+
+LOCAL = "http://localhost"
+LOCAL_HOST = {"Host": "localhost"}
 
 
 @pytest.fixture
@@ -36,7 +40,7 @@ def client(tmp_path: Path, adapter: FakeAdapter) -> Iterator[TestClient]:
     def open_transport(port: str, baudrate: int) -> Transport:
         return adapter
 
-    with TestClient(create_app(settings, open_transport)) as test_client:
+    with TestClient(create_app(settings, open_transport), base_url=LOCAL) as test_client:
         yield test_client
 
 
@@ -121,7 +125,7 @@ def test_disconnect_stops_reading(client: TestClient, port: str, adapter: FakeAd
 
 
 def test_state_changes_and_readings_are_pushed(client: TestClient, port: str) -> None:
-    with client.websocket_connect("/api/events") as events:
+    with client.websocket_connect("/api/events", headers=LOCAL_HOST) as events:
         assert events.receive_json()["status"] == "disconnected"
 
         client.put("/api/connection", json={"port": port})
@@ -138,8 +142,76 @@ def test_state_changes_and_readings_are_pushed(client: TestClient, port: str) ->
 
 
 def test_pushed_state_matches_the_state_endpoint(client: TestClient) -> None:
-    with client.websocket_connect("/api/events") as events:
+    with client.websocket_connect("/api/events", headers=LOCAL_HOST) as events:
         assert events.receive_json() == client.get("/api/state").json()
+
+
+def test_foreign_host_header_is_rejected(client: TestClient) -> None:
+    foreign = {"Host": "attacker.example"}
+
+    assert client.get("/api/state", headers=foreign).status_code == 400
+    assert client.put("/api/connection", json={"port": "x"}, headers=foreign).status_code == 400
+    assert client.delete("/api/connection", headers=foreign).status_code == 400
+
+
+@pytest.mark.parametrize("host", ["localhost", "localhost:8080", "127.0.0.1:8080", "[::1]:8080"])
+def test_loopback_host_headers_are_accepted(client: TestClient, host: str) -> None:
+    assert client.get("/api/state", headers={"Host": host}).status_code == 200
+
+
+def test_configured_host_is_accepted(tmp_path: Path) -> None:
+    settings = Settings.from_env(
+        {"MACHE_PORT_PATTERNS": str(tmp_path / "tty*"), "MACHE_ALLOWED_HOSTS": "pc.home, 192.168.1.20"}
+    )
+
+    with TestClient(create_app(settings), base_url=LOCAL) as test_client:
+        for host in ("pc.home:8080", "192.168.1.20:8080"):
+            assert test_client.get("/api/state", headers={"Host": host}).status_code == 200
+        assert test_client.get("/api/state", headers={"Host": "other.home"}).status_code == 400
+
+
+def test_all_interface_binding_accepts_own_hosts_and_still_rejects_foreign_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("mache_cells.server.local_hosts", lambda: ("my-pc", "192.168.1.20", "[fd00::20]"))
+    settings = Settings.from_env(
+        {
+            "MACHE_HOST": "0.0.0.0",
+            "MACHE_PORT_PATTERNS": str(tmp_path / "tty*"),
+            "MACHE_ALLOWED_HOSTS": "extra.home",
+        }
+    )
+
+    with TestClient(create_app(settings), base_url=LOCAL) as test_client:
+        for host in ("my-pc:8080", "192.168.1.20:8080", "[fd00::20]:8080", "extra.home", "localhost"):
+            assert test_client.get("/api/state", headers={"Host": host}).status_code == 200
+        for host in ("attacker.example", "192.168.1.21:8080"):
+            assert test_client.get("/api/state", headers={"Host": host}).status_code == 400
+
+
+def test_loopback_binding_does_not_accept_own_hosts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("mache_cells.server.local_hosts", lambda: ("my-pc",))
+    settings = Settings.from_env({"MACHE_PORT_PATTERNS": str(tmp_path / "tty*")})
+
+    with TestClient(create_app(settings), base_url=LOCAL) as test_client:
+        assert test_client.get("/api/state", headers={"Host": "my-pc"}).status_code == 400
+
+
+def test_cross_origin_event_stream_is_refused(client: TestClient) -> None:
+    with (
+        pytest.raises(WebSocketDisconnect) as refused,
+        client.websocket_connect("/api/events", headers={**LOCAL_HOST, "Origin": "https://attacker.example"}),
+    ):
+        pass
+
+    assert refused.value.code == 1008
+
+
+def test_same_origin_event_stream_is_accepted(client: TestClient) -> None:
+    same_origin = {**LOCAL_HOST, "Origin": "http://localhost"}
+
+    with client.websocket_connect("/api/events", headers=same_origin) as events:
+        assert events.receive_json()["status"] == "disconnected"
 
 
 @pytest.mark.parametrize(("separation", "frame_timeout"), [("200", "300"), ("20", "20"), ("5", "2000")])
@@ -159,7 +231,7 @@ def test_serial_ports_listed_by_the_system_are_offered(
     monkeypatch.chdir(tmp_path)
     settings = Settings.from_env({"MACHE_PORT_PATTERNS": "COM*"})
 
-    with TestClient(create_app(settings)) as test_client:
+    with TestClient(create_app(settings), base_url=LOCAL) as test_client:
         assert test_client.get("/api/ports").json() == ["COM3", "COM7"]
 
 
@@ -169,7 +241,7 @@ def test_port_held_by_another_program_is_reported_as_busy(tmp_path: Path, port: 
     def held(port: str, baudrate: int) -> Transport:
         raise PortBusy(f"cannot open {port}")
 
-    with TestClient(create_app(settings, held)) as test_client:
+    with TestClient(create_app(settings, held), base_url=LOCAL) as test_client:
         assert test_client.put("/api/connection", json={"port": port}).json()["status"] == "port_busy"
 
 

@@ -7,7 +7,7 @@ import type { Reading } from '../types';
 
 const props = defineProps<{ reading: Reading }>();
 
-const { group: hovered, set: setHovered } = useGroupHover();
+const { group: hovered, enter, leave, tap } = useGroupHover();
 
 const rows = computed(() =>
   props.reading.voltages.map((_, index) => ({
@@ -41,12 +41,13 @@ const rows = computed(() =>
         </th>
       </tr>
     </thead>
-    <tbody @pointerleave="setHovered(null)">
+    <tbody @pointerleave="leave">
       <tr
         v-for="row in rows"
         :key="row.group"
         :class="{ 'row--outlier': row.isOutlier, 'row--hovered': hovered === row.group }"
-        @pointerenter="setHovered(row.group)"
+        @pointerenter="enter(row.group, $event)"
+        @pointerup="tap(row.group, $event)"
       >
         <td>{{ row.group }}</td>
         <td>{{ row.voltage ?? 'No value' }}</td>

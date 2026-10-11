@@ -4,5 +4,5 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   base: './',
   plugins: [vue()],
-  test: { environment: 'jsdom' },
+  test: { environment: 'jsdom', setupFiles: ['src/test-setup.ts'] },
 });

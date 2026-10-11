@@ -56,7 +56,7 @@ const barKind = (group: number): 'outlier' | null =>
       :bar-kind="barKind"
     >
       State of health of each cell group relative to the pack, in percentage points: group capacity divided by
-      the pack capacity at 100 %. Hover a bar for its value.
+      the pack capacity at 100 %. Hover or tap a bar for its values.
     </DeviationChart>
   </PanelSection>
 </template>

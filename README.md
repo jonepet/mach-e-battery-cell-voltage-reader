@@ -80,10 +80,40 @@ arising from its use.
    *Ports (COM & LPT)*.
 5. To stop the reader, close the console window. Starting it again while it runs only opens the browser.
 
-Uninstall under *Settings > Apps*. The settings in the Configuration section work as Windows environment
-variables, for example `MACHE_PORT` for another port.
+Each release also contains `MacheCellVoltageReader-<version>-setup.exe.sha256`. To verify the download, run in
+PowerShell in the download folder and compare the result with the file's content:
 
-Build the installer on a Windows machine with Python 3.13, Node.js and Inno Setup 6:
+```powershell
+(Get-FileHash .\MacheCellVoltageReader-<version>-setup.exe -Algorithm SHA256).Hash
+```
+
+The installer's options page offers two choices, both off by default:
+
+- **Start the reader when I log on to Windows** puts a shortcut in your Startup folder. The console window
+  and the browser then open at every logon.
+- **Allow other devices on my network to open the reader** makes the reader listen on all network
+  interfaces. It has no login and no encryption: choose it only on a trusted home network.
+
+With network access, the console window lists the addresses for other devices, for example
+`http://192.168.1.20:8080/` or `http://<PC name>:8080/`. Open one of them in the browser of a phone or another
+computer on the same network. The computer's own name and addresses are accepted automatically.
+
+Windows Firewall must let those connections through:
+
+- **Installed for all users** (administrator rights): the installer adds an inbound rule for the reader that
+  allows only the local subnet on Private networks. Windows shows no prompt.
+- **Installed for you only**: Windows asks on the first start whether to allow the reader through the firewall.
+  Allow **Private networks** only and clear **Public networks**. If you chose Cancel, allow
+  `MacheCells.exe` under *Windows Security > Firewall & network protection > Allow an app through firewall*.
+
+The network must be classified as Private in *Settings > Network & internet*.
+
+To change these options, run the installer again and change the choices on the options page, or uninstall under
+*Settings > Apps*, which also removes the Startup shortcut and the firewall rule. The other settings in the
+Configuration section work as Windows environment variables, for example `MACHE_PORT` for another port. An
+explicitly set `MACHE_HOST` takes precedence over the installer's network option.
+
+Build the installer on a Windows machine with Python 3.14, Node.js 24 and Inno Setup 6.7.1:
 
 ```powershell
 ./packaging/build.ps1
@@ -126,10 +156,29 @@ docker compose run --rm app mache-cells read /dev/ttyUSB0 --json
 | `MACHE_OUTLIER_DEVIATION_V` | `0.02` | Deviation from the median that flags a cell |
 | `MACHE_SPREAD_WARNING_V` | `0.05` | Spread that is flagged |
 | `MACHE_PORT_PATTERNS` | `/dev/ttyUSB*,/dev/ttyACM*,/dev/rfcomm*` (Windows: `COM*`) | Device globs offered as ports |
-| `MACHE_HOST` | `0.0.0.0` (Windows application: `127.0.0.1`) | Address the GUI listens on |
+| `MACHE_HOST` | `127.0.0.1` (Docker image: `0.0.0.0`, published on `MACHE_BIND_ADDRESS`) | Address the GUI listens on |
 | `MACHE_PORT` | `8080` | Port the GUI listens on |
+| `MACHE_ALLOWED_HOSTS` | empty | Comma-separated host names or IP addresses, besides `localhost`, `127.0.0.1` and `[::1]`, that the GUI answers to |
 
 On a Bluetooth or USB-over-network link, use `MACHE_SEPARATION_MS=20` and `MACHE_FRAME_TIMEOUT_MS=60`.
+
+## Network access
+
+By default only the computer running the reader can reach it. The reader has no login and no encryption: anyone
+who can reach it sees the battery data and can connect or disconnect the adapter. Enable network access only on
+a trusted home network, and never port-forward it or expose it to the internet.
+
+- **Windows application:** select *Allow other devices on my network to open the reader* in the installer
+  (see [Windows](#windows)), then restart the reader. Open one of the addresses printed in the console window,
+  such as `http://<PC name or IP address>:8080/`, on the other device. Without the installer, set the user
+  environment variable `MACHE_HOST=0.0.0.0`.
+- **Docker:** set `MACHE_BIND_ADDRESS=0.0.0.0` and `MACHE_ALLOWED_HOSTS=<host name or IP address as typed in the
+  browser>` in `.env`, then run `docker compose up -d app`.
+
+A request whose `Host` header is not `localhost`, `127.0.0.1`, `[::1]` or listed in `MACHE_ALLOWED_HOSTS` is
+refused. When the reader listens on all interfaces (`MACHE_HOST=0.0.0.0`), the computer's own host name and
+IP addresses are accepted as well; use `MACHE_ALLOWED_HOSTS` for any other name, such as one set in your router.
+The live data stream refuses connections from a page on another origin.
 
 ## Development
 

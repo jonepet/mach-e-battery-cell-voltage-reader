@@ -46,7 +46,7 @@ const entries = computed(() =>
     <span
       v-else
       class="readout__hint"
-    >Hover a cell group in a chart or the table to see its values.</span>
+    >Hover or tap a cell group in a chart or the table to see its values.</span>
   </aside>
 </template>
 

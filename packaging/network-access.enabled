@@ -1,0 +1,2 @@
+The installer creates this file when "Allow other devices on my network to open the reader" is selected.
+While it exists, the reader listens on all network interfaces unless MACHE_HOST is set.
