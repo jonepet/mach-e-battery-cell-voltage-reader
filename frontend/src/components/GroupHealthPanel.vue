@@ -21,8 +21,10 @@ const facts = computed(() => {
   if (!current) {
     return [];
   }
-  const healthOf = (group: number): string =>
-    current.reference_capacity === null ? '' : `, ${percent(current.health[group - 1] ?? 0)}`;
+  const healthOf = (group: number): string => {
+    const value = current.health[group - 1] ?? null;
+    return value === null ? '' : `, ${percent(value)}`;
+  };
   return [
     ['Capacity at 100 %', current.reference_capacity === null ? 'Not available' : ampereHours(current.reference_capacity)],
     ['Weakest', `${ampereHours(current.minimum)}${healthOf(current.weakest_group)} (#${current.weakest_group})`],
