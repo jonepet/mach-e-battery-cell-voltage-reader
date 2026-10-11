@@ -64,6 +64,10 @@ timestamp last advanced. The meaning of each value is an interpretation of this 
 definition. Values may be wrong or differ on other vehicles, battery versions and software levels. Use them for information only,
 not for repair or safety decisions. The project is not affiliated with or endorsed by Ford Motor Company.
 
+This software is provided as is, without warranty of any kind, express or implied. You use it entirely at your
+own risk; the authors accept no liability for any damage to vehicles, equipment or data, or for any other loss
+arising from its use.
+
 ## Windows
 
 1. Download `MacheCellVoltageReader-<version>-setup.exe` from the latest
