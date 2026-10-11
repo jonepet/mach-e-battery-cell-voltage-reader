@@ -1,9 +1,11 @@
+import contextlib
 from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+import anyio
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -16,6 +18,18 @@ WEB_DIR = Path(__file__).parent / "web"
 
 class ConnectionRequest(BaseModel):
     port: str
+
+
+async def _push_states(socket: WebSocket, monitor: CellMonitor) -> None:
+    """Send every state until the client goes away; a client can leave in the middle of a send."""
+    with contextlib.suppress(WebSocketDisconnect):
+        async for state in monitor.updates():
+            await socket.send_json(state)
+
+
+async def _until_closed(socket: WebSocket) -> None:
+    async for _ in socket.iter_text():
+        pass
 
 
 def create_app(settings: Settings, open_transport: TransportFactory = SerialTransport) -> FastAPI:
@@ -50,6 +64,14 @@ def create_app(settings: Settings, open_transport: TransportFactory = SerialTran
     @app.delete("/api/connection")
     async def delete_connection() -> dict[str, Any]:
         return await guarded(monitor.disconnect())
+
+    @app.websocket("/api/events")
+    async def events(socket: WebSocket) -> None:
+        await socket.accept()
+        async with anyio.create_task_group() as tasks:
+            tasks.start_soon(_push_states, socket, monitor)
+            await _until_closed(socket)
+            tasks.cancel_scope.cancel()
 
     app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
     return app

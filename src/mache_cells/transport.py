@@ -1,4 +1,5 @@
 import contextlib
+import errno
 import time
 from collections.abc import Callable
 from typing import Protocol
@@ -8,6 +9,10 @@ import serial
 
 class TransportError(Exception):
     pass
+
+
+class PortBusy(TransportError):
+    """Another program holds the adapter port."""
 
 
 class ReplyLost(Exception):
@@ -29,6 +34,12 @@ def reply_lines(raw: bytes, command: str) -> list[str]:
     return [line.strip() for line in text.split("\r") if line.strip() and line.strip() != command]
 
 
+def _held_by_another_program(exc: serial.SerialException) -> bool:
+    """POSIX reports the failed exclusive lock with its errno. pyserial on Windows keeps no errno and only
+    embeds the repr of WinError 5 (access denied), which a COM port gives while another program holds it."""
+    return exc.errno in {errno.EWOULDBLOCK, errno.EAGAIN, errno.EBUSY} or "PermissionError(13," in str(exc)
+
+
 class SerialTransport:
     """ELM327 command/reply exchange on a serial port, held exclusively: commands from a second program
     would interleave with ours and corrupt both programs' replies."""
@@ -37,7 +48,8 @@ class SerialTransport:
         try:
             self._serial = serial.Serial(port=port, baudrate=baudrate, timeout=0.05, exclusive=True)
         except serial.SerialException as exc:
-            raise TransportError(f"cannot open {port}: {exc}") from exc
+            error = PortBusy if _held_by_another_program(exc) else TransportError
+            raise error(f"cannot open {port}: {exc}") from exc
         try:
             self._serial.reset_input_buffer()
         except (OSError, serial.SerialException) as exc:

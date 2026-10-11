@@ -6,8 +6,9 @@ import time
 from collections.abc import Callable, Iterator
 
 import pytest
+import serial
 
-from mache_cells.transport import ReplyLost, SerialTransport, TransportError, reply_lines
+from mache_cells.transport import PortBusy, ReplyLost, SerialTransport, TransportError, reply_lines
 
 Script = Callable[[int], None]
 
@@ -78,12 +79,26 @@ def test_port_in_use_by_another_reader_is_refused(adapter_pty: tuple[int, str]) 
     _, port = adapter_pty
     first = SerialTransport(port, 115200)
     try:
-        with pytest.raises(TransportError, match="cannot open"):
+        with pytest.raises(PortBusy, match="cannot open"):
             SerialTransport(port, 115200)
     finally:
         first.close()
 
 
-def test_unopenable_port_is_transport_error() -> None:
-    with pytest.raises(TransportError, match="cannot open"):
+def test_windows_port_held_by_another_program_is_busy(monkeypatch: pytest.MonkeyPatch) -> None:
+    def held(**_: object) -> None:
+        raise serial.SerialException(
+            "could not open port 'COM3': PermissionError(13, 'Ingen tilgang.', None, 5)"
+        )
+
+    monkeypatch.setattr(serial, "Serial", held)
+
+    with pytest.raises(PortBusy):
+        SerialTransport("COM3", 115200)
+
+
+def test_unopenable_port_is_transport_error_but_not_busy() -> None:
+    with pytest.raises(TransportError, match="cannot open") as raised:
         SerialTransport("/dev/does-not-exist", 115200)
+
+    assert not isinstance(raised.value, PortBusy)

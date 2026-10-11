@@ -2,14 +2,16 @@ import re
 import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from serial.tools import list_ports
 
 from mache_cells.config import Settings
 from mache_cells.server import create_app
-from mache_cells.transport import Transport
+from mache_cells.transport import PortBusy, Transport
 from tests.conftest import BECM_DATA, FakeAdapter
 
 
@@ -61,6 +63,26 @@ def test_connection_reads_every_cell_and_battery_signal(client: TestClient, port
     signals = {signal["key"]: signal for signal in reading["signals"]}
     assert signals["soh"]["value"] == pytest.approx(91.5)
     assert all(signal["error"] is None for signal in reading["signals"])
+    assert reading["health_error"] is None
+    assert reading["health"]["weakest_group"] == 20
+    assert reading["health"]["reference_capacity"] == pytest.approx(253.2 / 0.915)
+    assert reading["health"]["health"][19] == pytest.approx(248.84 / (253.2 / 0.915) * 100)
+    assert reading["balancing_error"] is None
+    assert reading["balancing"]["active_count"] == 4
+    assert reading["balancing"]["active"][0] is True
+
+
+def test_failed_capacity_read_keeps_cell_voltages(
+    client: TestClient, port: str, adapter: FakeAdapter
+) -> None:
+    del adapter.data[0xFDCD]
+    client.put("/api/connection", json={"port": port})
+
+    reading = wait_for(client, lambda s: s["reading"] is not None)["reading"]
+
+    assert len(reading["voltages"]) == 94
+    assert reading["health"] is None
+    assert "requestOutOfRange" in reading["health_error"]
 
 
 def test_failed_cell_read_keeps_battery_signals(client: TestClient, port: str, adapter: FakeAdapter) -> None:
@@ -96,12 +118,57 @@ def test_disconnect_stops_reading(client: TestClient, port: str, adapter: FakeAd
     assert adapter.sent_after_close == []
 
 
+def test_state_changes_and_readings_are_pushed(client: TestClient, port: str) -> None:
+    with client.websocket_connect("/api/events") as events:
+        assert events.receive_json()["status"] == "disconnected"
+
+        client.put("/api/connection", json={"port": port})
+        state = events.receive_json()
+        while state["reading"] is None:
+            state = events.receive_json()
+
+        assert state["status"] == "connected"
+        assert len(state["reading"]["voltages"]) == 94
+
+        client.delete("/api/connection")
+        while state["status"] != "disconnected":
+            state = events.receive_json()
+
+
+def test_pushed_state_matches_the_state_endpoint(client: TestClient) -> None:
+    with client.websocket_connect("/api/events") as events:
+        assert events.receive_json() == client.get("/api/state").json()
+
+
 @pytest.mark.parametrize(("separation", "frame_timeout"), [("200", "300"), ("20", "20"), ("5", "2000")])
 def test_inconsistent_timing_is_rejected_at_startup(separation: str, frame_timeout: str) -> None:
     env = {"MACHE_SEPARATION_MS": separation, "MACHE_FRAME_TIMEOUT_MS": frame_timeout}
 
     with pytest.raises(ValueError, match="ms"):
         Settings.from_env(env)
+
+
+def test_serial_ports_listed_by_the_system_are_offered(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    listed = [SimpleNamespace(device="COM3"), SimpleNamespace(device="COM7"), SimpleNamespace(device="LPT1")]
+    monkeypatch.setattr(list_ports, "comports", lambda: listed)
+    (tmp_path / "COMfile.dll").touch()
+    monkeypatch.chdir(tmp_path)
+    settings = Settings.from_env({"MACHE_PORT_PATTERNS": "COM*"})
+
+    with TestClient(create_app(settings)) as test_client:
+        assert test_client.get("/api/ports").json() == ["COM3", "COM7"]
+
+
+def test_port_held_by_another_program_is_reported_as_busy(tmp_path: Path, port: str) -> None:
+    settings = Settings.from_env({"MACHE_PORT_PATTERNS": str(tmp_path / "tty*")})
+
+    def held(port: str, baudrate: int) -> Transport:
+        raise PortBusy(f"cannot open {port}")
+
+    with TestClient(create_app(settings, held)) as test_client:
+        assert test_client.put("/api/connection", json={"port": port}).json()["status"] == "port_busy"
 
 
 def test_unknown_port_is_rejected(client: TestClient) -> None:

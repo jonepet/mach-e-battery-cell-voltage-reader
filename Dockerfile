@@ -1,3 +1,15 @@
+FROM node:24-slim AS frontend
+
+WORKDIR /frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend ./
+
+FROM frontend AS frontend-build
+RUN npm run build
+
 FROM python:3.13-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -13,6 +25,7 @@ RUN mkdir -p src/mache_cells \
     && pip uninstall -y mache-cell-voltages
 
 COPY src ./src
+COPY --from=frontend-build /frontend/dist ./src/mache_cells/web
 RUN pip install --no-deps -e .
 COPY tests ./tests
 

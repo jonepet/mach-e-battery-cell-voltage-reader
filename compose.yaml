@@ -21,11 +21,24 @@ services:
     build: .
     profiles: [tools]
     volumes:
-      - ./src:/app/src
       - ./tests:/app/tests
       - ./tools:/app/tools
       - ./pyproject.toml:/app/pyproject.toml
     command: sh -c "ruff format --check src tests tools && ruff check src tests tools && mypy && pytest -q"
+
+  frontend-checks:
+    build:
+      context: .
+      target: frontend
+    profiles: [tools]
+    command: sh -c "npm run lint && npm run typecheck && npm test && npm run build"
+
+  wheel:
+    build: .
+    profiles: [tools]
+    volumes:
+      - ./dist:/dist
+    command: pip wheel --no-deps --wheel-dir /dist .
 
   screenshot:
     build:

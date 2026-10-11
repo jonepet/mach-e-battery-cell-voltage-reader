@@ -10,3 +10,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker compose run --rm --build checks
+      - run: docker compose run --rm --build frontend-checks

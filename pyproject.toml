@@ -5,6 +5,7 @@ description = "Research project: read every cell voltage and the health of a For
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "anyio>=4.15",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "pyserial>=3.5",
@@ -30,7 +31,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-mache_cells = ["web/*"]
+mache_cells = ["web/**/*"]
 
 [tool.ruff]
 line-length = 110

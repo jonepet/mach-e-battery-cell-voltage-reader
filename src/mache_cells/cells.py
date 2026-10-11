@@ -25,5 +25,18 @@ def decode_cell_block(data: bytes) -> list[float | None]:
     return [None if math.isnan(value) else value for value in floats]
 
 
+def decode_group_values(data: bytes, group_count: int | None, quantity: str) -> list[float | None]:
+    """One big-endian IEEE 754 single-precision float per series cell group; NaN is returned as None.
+
+    `group_count` is the number of groups in the cell block, when it was read.
+    """
+    if not data or len(data) % 4:
+        raise CellBlockError(f"{quantity} block of {len(data)} bytes is not a run of 4-byte values")
+    count = len(data) // 4
+    if group_count is not None and count != group_count:
+        raise CellBlockError(f"{quantity} block holds {count} groups, cell block holds {group_count}")
+    return [None if math.isnan(value) else value for value in struct.unpack(f">{count}f", data)]
+
+
 def read_cell_voltages(uds: UdsClient) -> list[float | None]:
     return decode_cell_block(uds.read_did(BECM_REQUEST_ID, BECM_RESPONSE_ID, CELL_BLOCK_DID))

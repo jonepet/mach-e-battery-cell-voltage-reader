@@ -1,0 +1,66 @@
+:root {
+  --surface: #f6f7f9;
+  --panel: #fff;
+  --border: #d9dde3;
+  --text: #1c2430;
+  --muted: #5d6878;
+  --accent: #2f6fdb;
+  --grid: #e5e8ec;
+  --warning-bg: #fff4d6;
+  --warning-border: #e0a800;
+  --error: #b42318;
+  --balancing: #e07b00;
+  --hover: #7a3fd1;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #12161c;
+    --panel: #1b2129;
+    --border: #2e3742;
+    --text: #e6eaf0;
+    --muted: #9aa5b4;
+    --accent: #6f9ef0;
+    --grid: #2a323c;
+    --warning-bg: #3a2f10;
+    --warning-border: #c99a1e;
+    --error: #f0857c;
+    --balancing: #f5a43a;
+    --hover: #c4a3ff;
+
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100vh;
+}
+
+button,
+select {
+  font: inherit;
+  padding: 4px 10px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+button:disabled {
+  opacity: 0.5;
+}

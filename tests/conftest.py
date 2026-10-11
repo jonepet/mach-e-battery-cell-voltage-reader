@@ -8,8 +8,15 @@ LIVE_CELLS = [3.786 - 0.0001 * (cell % 9) for cell in range(94)]
 CELL_BLOCK = (
     struct.pack(">94f", *LIVE_CELLS) + struct.pack(">94f", *[3.904] * 94) + struct.pack(">94f", *[3.840] * 94)
 )
+BALANCING_GROUPS = {1, 2, 8, 93}
+GROUP_CHARGE = [59.9 if group in BALANCING_GROUPS else 59.4 + 0.02 * (group % 9) for group in range(1, 95)]
+GROUP_CAPACITIES = [248.84 if group == 20 else 252.5 + 0.1 * (group % 5) for group in range(1, 95)]
 BECM_DATA = {
     0xFDF4: CELL_BLOCK,
+    0xFDCD: struct.pack(">94f", *GROUP_CAPACITIES),
+    0xFDCE: struct.pack(">94f", *GROUP_CHARGE),
+    0xFDEB: bytes(1 if group in BALANCING_GROUPS else 0 for group in range(1, 95)),
+    0xFDD3: struct.pack(">94I", *(4802 if group in BALANCING_GROUPS else 0 for group in range(1, 95))),
     0xDD01: bytes.fromhex("03AFA2"),
     0x490C: bytes([0xB7]),
     0x485C: (2532).to_bytes(2, "big"),

@@ -4,3 +4,8 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 *.egg-info/
+node_modules/
+/dist/
+/build/
+/packaging/build/
+/src/mache_cells/web/

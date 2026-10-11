@@ -1,4 +1,4 @@
-"""Capture the README images from a running, connected GUI: the first screen and the cell-voltage panel."""
+"""Capture the README images from a running, connected GUI: the first screen and the cell panels."""
 
 import os
 import sys
@@ -21,8 +21,12 @@ def main() -> int:
         page.wait_for_selector("#chart rect", timeout=60000)
         page.screenshot(path=str(directory / "overview.png"))
         page.locator("#cells-panel").screenshot(path=str(directory / "cell-voltages.png"))
+        page.wait_for_selector("#health-chart rect", timeout=60000)
+        page.locator("#health-heading").locator("..").screenshot(path=str(directory / "group-health.png"))
+        page.wait_for_selector("#balancing-chart rect", timeout=60000)
+        page.locator("#balancing-heading").locator("..").screenshot(path=str(directory / "balancing.png"))
         browser.close()
-    print(f"saved overview.png and cell-voltages.png to {directory}")
+    print(f"saved overview.png, cell-voltages.png, group-health.png and balancing.png to {directory}")
     for error in errors:
         print(f"page error: {error}", file=sys.stderr)
     return 1 if errors else 0

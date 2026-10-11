@@ -1,7 +1,15 @@
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 
 from mache_cells.elm327 import check_timing
+
+POSIX_PORT_PATTERNS = ("/dev/ttyUSB*", "/dev/ttyACM*", "/dev/rfcomm*")
+WINDOWS_PORT_PATTERNS = ("COM*",)
+
+
+def default_port_patterns(platform: str) -> tuple[str, ...]:
+    return WINDOWS_PORT_PATTERNS if platform == "win32" else POSIX_PORT_PATTERNS
 
 
 @dataclass(frozen=True)
@@ -19,7 +27,7 @@ class Settings:
     port_patterns: tuple[str, ...]
 
     @classmethod
-    def from_env(cls, env: Mapping[str, str]) -> "Settings":
+    def from_env(cls, env: Mapping[str, str], platform: str = sys.platform) -> "Settings":
         settings = cls(
             host=env.get("MACHE_HOST", "0.0.0.0"),
             port=int(env.get("MACHE_PORT", "8080")),
@@ -31,8 +39,10 @@ class Settings:
             frame_timeout_ms=int(env.get("MACHE_FRAME_TIMEOUT_MS", "200")),
             outlier_deviation_v=float(env.get("MACHE_OUTLIER_DEVIATION_V", "0.02")),
             spread_warning_v=float(env.get("MACHE_SPREAD_WARNING_V", "0.05")),
-            port_patterns=tuple(
-                env.get("MACHE_PORT_PATTERNS", "/dev/ttyUSB*,/dev/ttyACM*,/dev/rfcomm*").split(",")
+            port_patterns=(
+                tuple(env["MACHE_PORT_PATTERNS"].split(","))
+                if "MACHE_PORT_PATTERNS" in env
+                else default_port_patterns(platform)
             ),
         )
         check_timing(settings.separation_ms, settings.frame_timeout_ms)
