@@ -6,6 +6,8 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+PANEL_ONLY = ".readout { visibility: hidden; }"
+
 
 def main() -> int:
     url = os.environ["GUI_URL"]
@@ -20,13 +22,13 @@ def main() -> int:
         page.wait_for_selector("#battery .tile", timeout=60000)
         page.wait_for_selector("#chart rect", timeout=60000)
         page.screenshot(path=str(directory / "overview.png"))
-        page.locator("#cells-panel").screenshot(path=str(directory / "cell-voltages.png"))
+        page.locator("#cells-panel").screenshot(path=str(directory / "cell-voltages.png"), style=PANEL_ONLY)
         page.wait_for_selector("#health-chart rect", timeout=60000)
-        page.locator("#health-heading").locator("..").screenshot(path=str(directory / "group-health.png"))
-        page.wait_for_selector("#balancing-chart rect", timeout=60000)
-        page.locator("#balancing-heading").locator("..").screenshot(path=str(directory / "balancing.png"))
+        page.locator("#health-heading").locator("..").screenshot(
+            path=str(directory / "group-health.png"), style=PANEL_ONLY
+        )
         browser.close()
-    print(f"saved overview.png, cell-voltages.png, group-health.png and balancing.png to {directory}")
+    print(f"saved overview.png, cell-voltages.png and group-health.png to {directory}")
     for error in errors:
         print(f"page error: {error}", file=sys.stderr)
     return 1 if errors else 0

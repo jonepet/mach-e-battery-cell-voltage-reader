@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, shallowRef, watch } from 'vue';
 
-import { CHART, deviationChart } from '../chart';
+import { CHART, type ChartRange, deviationChart, deviationExtent, holdRange } from '../chart';
 import { useGroupHover } from '../composables/useGroupHover';
 
 const props = defineProps<{
@@ -11,14 +11,28 @@ const props = defineProps<{
   center: number | null;
   unit: string;
   minimumExtent: number;
-  highlighted: ReadonlySet<number>;
-  highlightClass: 'outlier' | 'balancing';
+  barKind: (group: number) => 'outlier' | 'balancing' | null;
 }>();
 
 const { group: hovered, set: setHovered } = useGroupHover();
 
+const range = shallowRef<ChartRange | null>(null);
+
+watch(
+  [() => props.values, () => props.center],
+  ([values, center]) => {
+    if (center === null) {
+      return;
+    }
+    range.value = holdRange(range.value, deviationExtent(values, center, props.minimumExtent), Date.now());
+  },
+  { immediate: true },
+);
+
 const model = computed(() =>
-  props.center === null ? null : deviationChart(props.values, props.center, props.unit, props.minimumExtent),
+  props.center === null || range.value === null
+    ? null
+    : deviationChart(props.values, props.center, props.unit, range.value),
 );
 </script>
 
@@ -82,9 +96,7 @@ const model = computed(() =>
           v-bind="slot.bar"
           rx="2"
           class="bar"
-          :class="[
-            { [`bar--${highlightClass}`]: highlighted.has(slot.group), 'bar--hovered': hovered === slot.group },
-          ]"
+          :class="[barKind(slot.group) && `bar--${barKind(slot.group)}`, { 'bar--hovered': hovered === slot.group }]"
         />
       </g>
     </svg>

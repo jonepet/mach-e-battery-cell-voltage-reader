@@ -29,25 +29,50 @@ export interface DeviationChartModel {
   readonly plotHeight: number;
 }
 
+export interface ChartRange {
+  readonly limit: number;
+  readonly step: number;
+  readonly narrowerSince: number | null;
+}
+
+const NARROW_AFTER_MS = 60_000;
+
 const niceStep = (range: number): number => {
   const rough = range / 4;
   const magnitude = 10 ** Math.floor(Math.log10(rough));
   return [1, 2, 5, 10].map((factor) => factor * magnitude).find((step) => step >= rough) ?? 10 * magnitude;
 };
 
+export function deviationExtent(
+  values: readonly (number | null)[],
+  center: number,
+  minimumExtent: number,
+): number {
+  return Math.max(minimumExtent, ...values.flatMap((value) => (value === null ? [] : [Math.abs(value - center)])));
+}
+
+/** Widens at once so no bar is clipped; narrows only after the data has fitted a narrower range for a minute. */
+export function holdRange(previous: ChartRange | null, extent: number, now: number): ChartRange {
+  const step = niceStep(extent * 2);
+  const wanted = { limit: Math.ceil(extent / step) * step, step, narrowerSince: null };
+  if (previous === null || wanted.limit > previous.limit) {
+    return wanted;
+  }
+  if (wanted.limit === previous.limit) {
+    return { ...previous, narrowerSince: null };
+  }
+  const since = previous.narrowerSince ?? now;
+  return now - since >= NARROW_AFTER_MS ? wanted : { ...previous, narrowerSince: since };
+}
+
 export function deviationChart(
   values: readonly (number | null)[],
   center: number,
   unit: string,
-  minimumExtent: number,
+  range: ChartRange,
 ): DeviationChartModel {
+  const { limit, step } = range;
   const deviations = values.map((value) => (value === null ? null : value - center));
-  const extent = Math.max(
-    minimumExtent,
-    ...deviations.flatMap((deviation) => (deviation === null ? [] : [Math.abs(deviation)])),
-  );
-  const step = niceStep(extent * 2);
-  const limit = Math.ceil(extent / step) * step;
   const y = (deviation: number): number => CHART.top + ((limit - deviation) / (2 * limit)) * PLOT_HEIGHT;
 
   const tickCount = Math.round((2 * limit) / step);

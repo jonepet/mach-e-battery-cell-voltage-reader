@@ -32,7 +32,8 @@ const facts = computed(() => {
   ] as const;
 });
 
-const weakest = computed(() => new Set(health.value ? [health.value.weakest_group] : []));
+const barKind = (group: number): 'outlier' | null =>
+  group === health.value?.weakest_group ? 'outlier' : null;
 </script>
 
 <template>
@@ -52,8 +53,7 @@ const weakest = computed(() => new Set(health.value ? [health.value.weakest_grou
       :center="packHealthChartCenter"
       unit="%"
       :minimum-extent="0.5"
-      :highlighted="weakest"
-      highlight-class="outlier"
+      :bar-kind="barKind"
     >
       State of health of each cell group relative to the pack, in percentage points: group capacity divided by
       the pack capacity at 100 %. Hover a bar for its value.

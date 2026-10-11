@@ -1,8 +1,13 @@
+import math
+import struct
 from dataclasses import dataclass
 
 from mache_cells.cells import BECM_REQUEST_ID, BECM_RESPONSE_ID
 from mache_cells.elm327 import AdapterError
 from mache_cells.uds import UdsClient, UdsError
+
+SENSOR_TEMPERATURE_DID = 0xFDDC
+SENSOR_COUNT = 8
 
 
 @dataclass(frozen=True)
@@ -59,15 +64,34 @@ SIGNALS = (
 )
 
 
-def read_signals(uds: UdsClient, signals: tuple[Signal, ...] = SIGNALS) -> list[SignalReading]:
+def read_signals(uds: UdsClient) -> list[SignalReading]:
     """Read every signal, each identifier once; a failed identifier fails only the signals that use it."""
     replies: dict[int, bytes | str] = {}
-    for did in dict.fromkeys(signal.did for signal in signals):
+    for did in dict.fromkeys(signal.did for signal in SIGNALS):
         try:
             replies[did] = uds.read_did(BECM_REQUEST_ID, BECM_RESPONSE_ID, did)
         except (AdapterError, UdsError) as exc:
             replies[did] = str(exc)
-    return [_reading(signal, replies[signal.did]) for signal in signals]
+    return [*(_reading(signal, replies[signal.did]) for signal in SIGNALS), *read_sensor_temperatures(uds)]
+
+
+def read_sensor_temperatures(uds: UdsClient) -> list[SignalReading]:
+    """One reading per battery temperature sensor; a failed read fails all of them."""
+    values: list[float | None] = [None] * SENSOR_COUNT
+    error = None
+    try:
+        data = uds.read_did(BECM_REQUEST_ID, BECM_RESPONSE_ID, SENSOR_TEMPERATURE_DID)
+        if len(data) != SENSOR_COUNT * 4:
+            raise ValueError(
+                f"{SENSOR_TEMPERATURE_DID:04X} returned {len(data)} bytes, need {SENSOR_COUNT * 4}"
+            )
+        values = [None if math.isnan(value) else value for value in struct.unpack(f">{SENSOR_COUNT}f", data)]
+    except (AdapterError, UdsError, ValueError) as exc:
+        error = str(exc)
+    return [
+        SignalReading(f"sensor_{number}", f"Sensor {number}", "temperature", "°C", 1, value, error)
+        for number, value in enumerate(values, start=1)
+    ]
 
 
 def _reading(signal: Signal, reply: bytes | str) -> SignalReading:

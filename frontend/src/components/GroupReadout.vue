@@ -20,7 +20,6 @@ const entries = computed(() =>
         ['From median', details.value.fromMedian],
         ['Capacity', details.value.capacity],
         ['Health', details.value.health],
-        ['State of charge', details.value.charge],
         ['Balancing', details.value.balancing],
       ] as const)
     : [],

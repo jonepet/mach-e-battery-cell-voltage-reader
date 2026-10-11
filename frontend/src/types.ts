@@ -37,10 +37,6 @@ export interface GroupHealth {
 }
 
 export interface Balancing {
-  readonly charge: readonly (number | null)[];
-  readonly charge_mean: number | null;
-  readonly charge_min: number | null;
-  readonly charge_max: number | null;
   readonly active: readonly boolean[];
   readonly seconds: readonly number[];
   readonly active_count: number;
@@ -48,8 +44,10 @@ export interface Balancing {
 }
 
 export interface Reading {
+  readonly timestamp: number;
   readonly duration_s: number;
   readonly voltages: readonly (number | null)[];
+  readonly voltages_age_s: number | null;
   readonly stats: CellStats | null;
   readonly cell_error: string | null;
   readonly health: GroupHealth | null;

@@ -5,16 +5,15 @@ import pytest
 from mache_cells.transport import reply_lines
 
 LIVE_CELLS = [3.786 - 0.0001 * (cell % 9) for cell in range(94)]
-CELL_BLOCK = (
-    struct.pack(">94f", *LIVE_CELLS) + struct.pack(">94f", *[3.904] * 94) + struct.pack(">94f", *[3.840] * 94)
-)
+CELL_VOLTAGE_HEADER = bytes.fromhex("66d75e8211160003afa24afe000007dc")
+CELL_VOLTAGES = CELL_VOLTAGE_HEADER + struct.pack(">94f", *LIVE_CELLS)
+SENSOR_TEMPERATURES = bytes.fromhex("407190b440533c1e407b1594406f2bde4077866840705e7640a65e094082d807")
 BALANCING_GROUPS = {1, 2, 8, 93}
-GROUP_CHARGE = [59.9 if group in BALANCING_GROUPS else 59.4 + 0.02 * (group % 9) for group in range(1, 95)]
 GROUP_CAPACITIES = [248.84 if group == 20 else 252.5 + 0.1 * (group % 5) for group in range(1, 95)]
 BECM_DATA = {
-    0xFDF4: CELL_BLOCK,
+    0xFDE3: CELL_VOLTAGES,
+    0xFDDC: SENSOR_TEMPERATURES,
     0xFDCD: struct.pack(">94f", *GROUP_CAPACITIES),
-    0xFDCE: struct.pack(">94f", *GROUP_CHARGE),
     0xFDEB: bytes(1 if group in BALANCING_GROUPS else 0 for group in range(1, 95)),
     0xFDD3: struct.pack(">94I", *(4802 if group in BALANCING_GROUPS else 0 for group in range(1, 95))),
     0xDD01: bytes.fromhex("03AFA2"),

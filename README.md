@@ -10,8 +10,6 @@ the command line.
 
 ![Cell group health](docs/images/group-health.png)
 
-![Cell group charge and balancing](docs/images/balancing.png)
-
 ## How it works
 
 The battery energy control module (request `0x7E4`, response `0x7EC`) answers UDS `0x22`
@@ -19,25 +17,28 @@ ReadDataByIdentifier requests. Each cell value is one big-endian IEEE 754 float 
 
 | Identifier | Content |
 |---|---|
-| `0xFDF4` | Cell group voltages (first of three runs of floats). Layout: [docs/cell-block.md](docs/cell-block.md) |
+| `0xFDE3` | Live cell group voltages: a 16-byte header whose first word is the module's timestamp in 0.1 s, then one float per group. Layout: [docs/cell-block.md](docs/cell-block.md) |
+| `0xFDDC` | Eight battery temperature sensors, °C |
 | `0xFDCD` | Capacity of each cell group, Ah |
-| `0xFDCE` | State of charge of each cell group, % |
 | `0xFDEB` | Balancing active, one byte per cell group |
 | `0xFDD3` | Time each cell group has been balancing, 32-bit count of 0.2 s |
+
+`0xFDF4` also holds cell group voltages, but it is a stored snapshot that does not update while the pack
+charges; it is not used.
 
 The program only sends UDS `0x22` ReadDataByIdentifier requests.
 
 ## Values shown
 
-- **Cell voltages:** every cell group, with minimum, maximum, mean, spread, standard deviation, outliers, a
+- **Cell voltages:** every cell group, live, with how long ago the battery module measured them, minimum,
+  maximum, mean, spread, standard deviation, outliers, which groups are being balanced and for how long, a
   deviation chart and a table.
 - **Cell group health:** capacity of each group and its state of health against the pack capacity at
   100 % (pack capacity divided by pack state of health), weakest and strongest group.
-- **Cell group charge and balancing:** state of charge of each group relative to the mean, which groups
-  are being balanced and for how long.
 - **Battery:** state of health, capacity, state of charge (BMS and displayed), energy remaining, pack
   voltage, lowest and average cell voltage, battery age.
-- **Temperatures:** pack, highest, lowest and average sensor, coolant inlet.
+- **Temperatures:** pack, highest, lowest and average sensor, coolant inlet, and the eight battery
+  temperature sensors.
 - **Odometer.**
 
 Verified on a 2021 Mach-E extended range (94 cell groups in series) with an OBDLink STN2231 adapter.
@@ -48,16 +49,19 @@ Ford does not publish these identifiers. The cell-level values were decoded by r
 vehicle:
 
 - every identifier the battery energy control module answers was read and decoded as integers and floats;
-- candidate values were compared with the module's own published pack values: the cell group voltages sum
-  to the pack voltage and match its lowest and average cell voltage, and the mean group capacity matches
-  the pack capacity;
-- readings were repeated at different states of charge and temperatures to separate live values from
-  stored ones: group capacities stayed unchanged, group charge changed with the pack state of charge, and the
-  balancing flags and timers agree group for group, with timers advancing at five counts per second.
+- candidate values were compared with the module's own published pack values: the live cell group voltages
+  (`0xFDE3`) sum to the pack voltage and match its lowest and average cell voltage, at rest and while
+  charging, and the mean group capacity matches the pack capacity;
+- the sensor temperatures (`0xFDDC`) were compared with the module's own highest and lowest sensor
+  temperature (`0x4808`) on every read;
+- readings were repeated at rest and while charging to separate live values from stored ones: the live cell
+  voltages changed on every read, while the stored snapshot (`0xFDF4`) stayed frozen for over ten minutes of
+  charging; the balancing flags and timers agree group for group, with timers advancing at five counts per
+  second.
 
-The module refreshes the cell group voltages and charge only every few minutes, so they can lag the pack
-values. The meaning of each value is an interpretation of this data, not a documented definition. Values may be
-wrong or differ on other vehicles, battery versions and software levels. Use them for information only,
+The module refreshes the live cell group voltages about every 1.2 s. The GUI shows how long ago the module's
+timestamp last advanced. The meaning of each value is an interpretation of this data, not a documented
+definition. Values may be wrong or differ on other vehicles, battery versions and software levels. Use them for information only,
 not for repair or safety decisions. The project is not affiliated with or endorsed by Ford Motor Company.
 
 ## Windows

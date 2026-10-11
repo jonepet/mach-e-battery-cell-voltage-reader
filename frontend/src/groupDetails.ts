@@ -1,4 +1,4 @@
-import { ampereHours, chargePercent, duration, percent, signedMillivolts, volts } from './format';
+import { ampereHours, duration, percent, signedMillivolts, volts } from './format';
 import type { Balancing, Reading } from './types';
 
 export interface GroupDetails {
@@ -7,7 +7,6 @@ export interface GroupDetails {
   readonly fromMedian: string | null;
   readonly capacity: string | null;
   readonly health: string | null;
-  readonly charge: string | null;
   readonly balancing: string | null;
 }
 
@@ -29,7 +28,6 @@ export function groupDetails(reading: Reading, group: number): GroupDetails {
     fromMedian: voltage === null || stats === null ? null : signedMillivolts(voltage - stats.median),
     capacity: present(at(health?.capacities, index), ampereHours),
     health: present(at(health?.health, index), percent),
-    charge: present(at(balancing?.charge, index), chargePercent),
     balancing: balancing === null ? null : balancingText(balancing, index),
   };
 }

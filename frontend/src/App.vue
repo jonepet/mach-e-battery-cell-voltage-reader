@@ -2,7 +2,6 @@
 import { computed } from 'vue';
 
 import AdapterPanel from './components/AdapterPanel.vue';
-import BalancingPanel from './components/BalancingPanel.vue';
 import CellVoltagesPanel from './components/CellVoltagesPanel.vue';
 import GroupHealthPanel from './components/GroupHealthPanel.vue';
 import GroupReadout from './components/GroupReadout.vue';
@@ -40,7 +39,6 @@ const signals = computed(() => reading.value?.signals ?? []);
       :signals="signals"
     />
     <CellVoltagesPanel :reading="reading" />
-    <BalancingPanel :reading="reading" />
     <GroupHealthPanel :reading="reading" />
     <AdapterPanel :state="state" />
   </main>

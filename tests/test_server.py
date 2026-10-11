@@ -58,6 +58,7 @@ def test_connection_reads_every_cell_and_battery_signal(client: TestClient, port
 
     assert len(reading["voltages"]) == 94
     assert reading["cell_error"] is None
+    assert reading["voltages_age_s"] >= 0
     assert reading["stats"]["valid"] == 94
     assert reading["stats"]["min_cell"] == 9
     signals = {signal["key"]: signal for signal in reading["signals"]}
@@ -86,12 +87,13 @@ def test_failed_capacity_read_keeps_cell_voltages(
 
 
 def test_failed_cell_read_keeps_battery_signals(client: TestClient, port: str, adapter: FakeAdapter) -> None:
-    del adapter.data[0xFDF4]
+    del adapter.data[0xFDE3]
     client.put("/api/connection", json={"port": port})
 
     reading = wait_for(client, lambda s: s["reading"] is not None)["reading"]
 
     assert reading["voltages"] == []
+    assert reading["voltages_age_s"] is None
     assert "requestOutOfRange" in reading["cell_error"]
     assert reading["stats"] is None
     assert next(s for s in reading["signals"] if s["key"] == "soh")["value"] == pytest.approx(91.5)

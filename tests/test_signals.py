@@ -1,7 +1,7 @@
 import pytest
 
 from mache_cells.elm327 import Elm327
-from mache_cells.signals import read_signals
+from mache_cells.signals import read_sensor_temperatures, read_signals
 from mache_cells.uds import UdsClient
 from tests.conftest import FakeAdapter
 
@@ -13,7 +13,8 @@ def uds_for(adapter: FakeAdapter) -> UdsClient:
 
 
 def test_battery_signals_decode(fake_adapter: FakeAdapter) -> None:
-    values = {reading.key: reading.value for reading in read_signals(uds_for(fake_adapter))}
+    readings = read_signals(uds_for(fake_adapter))
+    values = {reading.key: reading.value for reading in readings if not reading.key.startswith("sensor_")}
 
     assert values == {
         "odometer": 241570,
@@ -32,6 +33,30 @@ def test_battery_signals_decode(fake_adapter: FakeAdapter) -> None:
         "temperature_avg": 4,
         "coolant_inlet": 10,
     }
+
+
+def test_sensor_temperatures_decode_to_one_reading_per_sensor(fake_adapter: FakeAdapter) -> None:
+    sensors = read_sensor_temperatures(uds_for(fake_adapter))
+
+    assert [(sensor.label, sensor.group, sensor.unit, sensor.decimals) for sensor in sensors] == [
+        (f"Sensor {number}", "temperature", "°C", 1) for number in range(1, 9)
+    ]
+    expected = (3.7745, 3.3005, 3.9232, 3.7371, 3.8676, 3.7558, 5.1990, 4.0889)
+    assert [sensor.value for sensor in sensors] == [pytest.approx(value, abs=1e-4) for value in expected]
+    assert {reading.key for reading in read_signals(uds_for(fake_adapter))} >= {s.key for s in sensors}
+
+
+@pytest.mark.parametrize("payload", [None, bytes(31)])
+def test_failed_sensor_read_fails_every_sensor(fake_adapter: FakeAdapter, payload: bytes | None) -> None:
+    if payload is None:
+        del fake_adapter.data[0xFDDC]
+    else:
+        fake_adapter.data[0xFDDC] = payload
+
+    sensors = read_sensor_temperatures(uds_for(fake_adapter))
+
+    assert len(sensors) == 8
+    assert all(sensor.value is None and sensor.error for sensor in sensors)
 
 
 def test_shared_identifier_is_read_once(fake_adapter: FakeAdapter) -> None:

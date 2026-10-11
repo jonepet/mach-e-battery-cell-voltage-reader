@@ -61,13 +61,13 @@ def test_long_reply_that_keeps_arriving_is_not_cut_off(adapter_pty: tuple[int, s
 
 def test_lost_prompt_resynchronises(adapter_pty: tuple[int, str]) -> None:
     def relay_drops_the_tail(master: int) -> None:
-        read_command(master, b"22FDF4")
-        os.write(master, b"7EC146B62FDF44072B0\r")
+        read_command(master, b"22FDE3")
+        os.write(master, b"7EC146B62FDE34072B0\r")
         read_command(master, b"ATI")
         os.write(master, b"ELM327 v1.4b\r\r>")
 
     with pytest.raises(ReplyLost):
-        run(adapter_pty, relay_drops_the_tail, "22FDF4", 0.3)
+        run(adapter_pty, relay_drops_the_tail, "22FDE3", 0.3)
 
 
 def test_silent_adapter_is_transport_error(adapter_pty: tuple[int, str]) -> None:

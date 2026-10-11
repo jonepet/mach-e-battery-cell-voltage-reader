@@ -53,7 +53,7 @@ def read_once(settings: Settings, port: str, render: Renderer) -> int:
     try:
         adapter.initialize()
         uds = UdsClient(adapter)
-        voltages = read_cell_voltages(uds)
+        voltages = read_cell_voltages(uds).voltages
         signals = read_signals(uds)
     except (TransportError, AdapterError, UdsError, CellBlockError) as exc:
         print(f"error: {exc}", file=sys.stderr)

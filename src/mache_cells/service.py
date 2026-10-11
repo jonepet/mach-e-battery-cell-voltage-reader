@@ -11,7 +11,7 @@ from typing import Any
 from serial.tools import list_ports
 
 from mache_cells.balancing import Balancing, read_balancing
-from mache_cells.cells import CellBlockError, read_cell_voltages
+from mache_cells.cells import CellBlockError, TickWatch, read_cell_voltages
 from mache_cells.config import Settings
 from mache_cells.elm327 import AdapterError, AdapterInfo, Elm327
 from mache_cells.health import GroupHealth, analyse_health, read_group_capacities
@@ -32,6 +32,7 @@ class Reading:
     timestamp: float
     duration_s: float
     voltages: list[float | None]
+    voltages_age_s: float | None
     stats: CellStats | None
     cell_error: str | None
     health: GroupHealth | None
@@ -161,10 +162,11 @@ class CellMonitor:
 
     async def _read_loop(self, adapter: Elm327) -> None:
         uds = UdsClient(adapter)
+        tick_watch = TickWatch()
         while True:
             started = time.monotonic()
             try:
-                reading = await _bus_call(self._read, uds)
+                reading = await _bus_call(self._read, uds, tick_watch)
             except TransportError as exc:
                 await self._fail(str(exc))
                 return
@@ -172,12 +174,14 @@ class CellMonitor:
             await self._publish()
             await asyncio.sleep(max(0.0, self._settings.read_interval_s - (time.monotonic() - started)))
 
-    def _read(self, uds: UdsClient) -> Reading:
+    def _read(self, uds: UdsClient, tick_watch: TickWatch) -> Reading:
         started = time.monotonic()
         voltages: list[float | None] = []
+        voltages_age_s = None
         cell_error = None
         try:
-            voltages = read_cell_voltages(uds)
+            cells = read_cell_voltages(uds)
+            voltages, voltages_age_s = cells.voltages, tick_watch.age_s(cells.tick, time.monotonic())
         except (AdapterError, UdsError, CellBlockError) as exc:
             cell_error = str(exc)
         capacities: list[float | None] = []
@@ -200,6 +204,7 @@ class CellMonitor:
             time.time(),
             time.monotonic() - started,
             voltages,
+            voltages_age_s,
             stats,
             cell_error,
             health,

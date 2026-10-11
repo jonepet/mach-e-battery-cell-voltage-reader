@@ -1,8 +1,7 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
-import { defineComponent, h } from 'vue';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { defineComponent, h, nextTick, shallowRef } from 'vue';
 
-import BalancingPanel from './components/BalancingPanel.vue';
 import CellVoltagesPanel from './components/CellVoltagesPanel.vue';
 import GroupHealthPanel from './components/GroupHealthPanel.vue';
 import GroupReadout from './components/GroupReadout.vue';
@@ -12,8 +11,10 @@ import type { Reading } from './types';
 const voltages = [3.7, 3.71, 3.69];
 
 const reading: Reading = {
+  timestamp: 1_791_720_000,
   duration_s: 1,
   voltages,
+  voltages_age_s: 1.2,
   stats: {
     valid: 3,
     minimum: 3.69,
@@ -24,7 +25,7 @@ const reading: Reading = {
     spread: 0.02,
     min_cell: 3,
     max_cell: 2,
-    outliers: [],
+    outliers: [3],
     spread_exceeded: false,
   },
   cell_error: null,
@@ -40,13 +41,9 @@ const reading: Reading = {
   },
   health_error: null,
   balancing: {
-    charge: [50, 50.5, 49.5],
-    charge_mean: 50,
-    charge_min: 49.5,
-    charge_max: 50.5,
-    active: [false, true, false],
-    seconds: [0, 125, 0],
-    active_count: 1,
+    active: [false, true, true],
+    seconds: [0, 125, 60],
+    active_count: 2,
     longest_s: 125,
   },
   balancing_error: null,
@@ -55,17 +52,54 @@ const reading: Reading = {
   ],
 };
 
+const current = shallowRef(reading);
+
 const Page = defineComponent({
   setup() {
     provideGroupHover();
     return () =>
       h('div', [
-        h(CellVoltagesPanel, { reading }),
-        h(GroupHealthPanel, { reading }),
-        h(BalancingPanel, { reading }),
-        h(GroupReadout, { reading }),
+        h(CellVoltagesPanel, { reading: current.value }),
+        h(GroupHealthPanel, { reading: current.value }),
+        h(GroupReadout, { reading: current.value }),
       ]);
   },
+});
+
+beforeEach(() => {
+  current.value = reading;
+});
+
+describe('cell voltage panel', () => {
+  it('colours balancing groups, lets outliers win, and shows the measurement age and balancing facts', () => {
+    const page = mount(Page);
+
+    expect(page.findAll('#chart .bar').map((bar) => [bar.classes('bar--outlier'), bar.classes('bar--balancing')])).toEqual([
+      [false, false],
+      [false, true],
+      [true, false],
+    ]);
+    const panel = page.get('#cells-panel').text();
+    expect(panel).toContain('Measured by the battery module 1 s ago');
+    expect(panel).toContain('Groups balancing2 / 3');
+    expect(panel).toContain('Longest running2 min');
+  });
+
+  it('counts the measurement age up between readings and restarts it with a new reading', async () => {
+    vi.useFakeTimers();
+    try {
+      const panel = mount(Page);
+
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(panel.get('.age').text()).toBe('Measured by the battery module 4 s ago');
+
+      current.value = { ...reading, timestamp: reading.timestamp + 3, voltages_age_s: 0 };
+      await nextTick();
+      expect(panel.get('.age').text()).toBe('Measured by the battery module 0 s ago');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('group hover', () => {
@@ -74,7 +108,7 @@ describe('group hover', () => {
 
     await page.findAll('#health-chart .slot')[1]?.trigger('pointerenter');
 
-    for (const chart of ['#chart', '#health-chart', '#balancing-chart']) {
+    for (const chart of ['#chart', '#health-chart']) {
       const bands = page.findAll(`${chart} .band`);
       expect(bands.map((band) => band.classes('band--hovered'))).toEqual([false, true, false]);
       expect(page.findAll(`${chart} .bar`).map((bar) => bar.classes('bar--hovered'))).toEqual([false, true, false]);
@@ -84,6 +118,7 @@ describe('group hover', () => {
     expect(readout).toContain('Cell group #2');
     expect(readout).toContain('3.7100 V');
     expect(readout).toContain('Yes, 2 min');
+    expect(readout).not.toContain('State of charge');
   });
 
   it('clears the hover when the pointer leaves the chart', async () => {
@@ -102,7 +137,7 @@ describe('group hover', () => {
 
     await page.findAll('tbody tr')[2]?.trigger('pointerenter');
 
-    expect(page.findAll('#balancing-chart .band').map((band) => band.classes('band--hovered'))).toEqual([
+    expect(page.findAll('#health-chart .band').map((band) => band.classes('band--hovered'))).toEqual([
       false,
       false,
       true,

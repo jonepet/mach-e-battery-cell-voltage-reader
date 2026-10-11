@@ -59,20 +59,20 @@ def test_bus_fault_is_not_mistaken_for_silence() -> None:
 
 
 def test_truncated_frames_are_corrupt_reply() -> None:
-    frames = ["7EC100A62FDF455AA00", "7EC2100000000000000", "7EC28C00"]
+    frames = ["7EC100A62FDE355AA00", "7EC2100000000000000", "7EC28C00"]
 
     with pytest.raises(CorruptReply):
-        adapter(ScriptedTransport({"22FDF4": frames})).request(0x7E4, 0x7EC, bytes.fromhex("22FDF4"))
+        adapter(ScriptedTransport({"22FDE3": frames})).request(0x7E4, 0x7EC, bytes.fromhex("22FDE3"))
 
 
 def test_lost_reply_is_corrupt_reply_and_readdresses() -> None:
-    transport = ScriptedTransport({"22FDF4": ["LOST"]})
+    transport = ScriptedTransport({"22FDE3": ["LOST"]})
     elm = adapter(transport)
 
     with pytest.raises(CorruptReply, match="reply lost"):
-        elm.request(0x7E4, 0x7EC, bytes.fromhex("22FDF4"))
-    transport.replies["22FDF4"] = ["7EC0562FDF40102"]
-    elm.request(0x7E4, 0x7EC, bytes.fromhex("22FDF4"))
+        elm.request(0x7E4, 0x7EC, bytes.fromhex("22FDE3"))
+    transport.replies["22FDE3"] = ["7EC0562FDE30102"]
+    elm.request(0x7E4, 0x7EC, bytes.fromhex("22FDE3"))
 
     assert transport.sent.count("ATSH7E4") == 2
 
